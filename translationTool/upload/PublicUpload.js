@@ -10,7 +10,7 @@ const { loadSpreadsheet, localesPath, getPureKey, ns, creds, spreadsheetDocId, p
 
     [ 업로드 파일 실행 방법 ]
       package.json > script에 정의
-          - 형태: "node {업로드파일 경로} {업로드 대상 언어} {대상 리소스 컬럼 번호} {대상 Status 컬럼 번호}"
+          - 형태: "node {업로드파일 경로} {업로드 대상 언어} {대상 리소스 컬럼} {대상 Status 컬럼}"
           - 예시: "node translationTool/upload/PublicUpload.js KO_KR D F"
         * 여러 다국어를 for문으로 한번에 돌리면 시트의 갱신 완료 타이밍에 따라 이전 정보가 덮어씌워지는 경우가 있어 따로 실행하게끔 방식을 변경함 (22.08.12)
 
@@ -21,7 +21,7 @@ const { loadSpreadsheet, localesPath, getPureKey, ns, creds, spreadsheetDocId, p
                     : pass
                 B. 시트 O, 소스 코드 X
                     (1) status가 "삭제"이라면, 개발부에서 확인 후 제거한 리소스 이므로 시트에서도 제거
-                    (2) status가 "삭제"이 아니라면, pass (일단 정합성이 안맞는 상태로 둠 => 추가 요청 리소스라면 차후에 개발부에서 확인 후 소스코드에 추가하면 "확인(QI)" 로 올라갈것임)  			
+                    (2) status가 "삭제"이 아니라면, pass 
 
           2. [소스코드 기준] 소스코드에 있는 키 목록과 시트의 키 목록 비교
                 A. 소스코드 O, 시트 O 
@@ -31,13 +31,13 @@ const { loadSpreadsheet, localesPath, getPureKey, ns, creds, spreadsheetDocId, p
 
       [중복 키가 존재하는 경우, status별로 값을 비교하여 업로드 결정]
                 A. 시트-리소스간 값이 동일하지 않음 
-                    1. status가 "신규": 값만 소스코드 기준으로 변경  
-                    2. status가 "확인(QI)": 값만 소스코드 기준으로 변경  
-                    3. status가 "확인(Dev)" : status "확인(QI)"로 변경 + 값은 소스코드 기준으로 변경 (= GL팀에서 확인요청 이후 개발팀에서 소스코드를 변경한 경우)
+                    1. status가 "신규": 리소스만 소스코드 기준으로 변경  
+                    2. status가 "확인(QI)": 리소스만 소스코드 기준으로 변경  
+                    3. status가 "확인(Dev)" : status "확인(QI)"로 변경 + 리소스는 소스코드 기준으로 변경 (= GL팀에서 확인요청 이후 개발팀에서 소스코드를 변경한 경우)
                     4. status가 "확정": pass (= 개발부에서 확정 리소스를 소스코드에 다운로드(반영)하지 않은 상태인 것)
-                    5. status가 "삭제": 값만 소스코드 기준으로 변경 (= 개발부에서 아직 키가 제거되지 않은 상태인 것)  
-                    6. status가 "관리대상외": 값만 소스코드 기준으로 변경
-                    7. status가 "" (공백): status "확인(QI)"로 변경 + 값은 소스코드 기준으로 변경 (= 제품에 반영한 이후 다시 리소스가 변경된 경우) 
+                    5. status가 "삭제": 리소스만 소스코드 기준으로 변경 (= 개발부에서 아직 키가 제거되지 않은 상태인 것)  
+                    6. status가 "관리대상외": 리소스만 소스코드 기준으로 변경
+                    7. status가 "" (공백): status "확인(QI)"로 변경 + 리소스는 소스코드 기준으로 변경 (= 확정 리소스를 제품에 반영한 이후 다시 리소스가 변경된 경우) 
 
                 B. 시트와 리소스 값이 동일함
                   : pass
