@@ -69,17 +69,18 @@ async function fetchTranslationsFromSheetToJson(doc) {
   const lngsMap = {};
   const rows = await sheet.getRows();
 
-  // 1. Product List 컬럼 값에 "DCC"가 포함된 ROW만 추출
+  // 1. Product List 컬럼 값에 "DCC"가 포함된 ROW만 추출 => 통합 오류코드 문서에서 DCC 리소스는 제외되었으니 주석처리
   var dccRows = [];
   rows.forEach((row) => {
     if (!isNullOrEmpty(row[productColumnName])) {
-      const productTypes = row[productColumnName];
-      if (productTypes.includes("DCC")) {
-        if (row.DCC_Status == "확정") {
-          // 2. DCC_Status가 "확정"인 ROW만 추출
-          dccRows.push(row);
-        }
-      }
+      // const productTypes = row[productColumnName];
+      // if (productTypes.includes("DCC")) {
+      //   if (row.DCC_Status == "확정") {
+      //     // 2. DCC_Status가 "확정"인 ROW만 추출
+      //     dccRows.push(row);
+      //   }
+      // }
+      dccRows.push(row);
     }
   });
 
@@ -89,7 +90,55 @@ async function fetchTranslationsFromSheetToJson(doc) {
   const errorCodeRow = [];
   dccRows.forEach((row) => {
     // A. 에러코드가 존재하는 row 추출
-    if (!isNullOrEmpty(row[errorCodeColumnName])) {
+    if (!isNullOrEmpty(row[errorCodeColumnName]) && row[errorCodeColumnName] != "0") {
+      let typeColumn = row[productColumnName];
+      let targetTypes = typeColumn.split(",");
+
+      if (targetTypes.length > 0) {
+        var targetRow = { ...row };
+        var resourceKey = "";
+        var lng = lngs[0];
+        if (!lngsMap[lng]) {
+          lngsMap[lng] = {};
+        }
+
+        targetTypes.forEach((type) => {
+          if (!isNullOrEmpty(row[resourceColumnName])) {
+            switch (type.toUpperCase()) {
+              case "BA-SCP":
+                resourceKey = "log_BASCP_" + row[errorCodeColumnName];
+                break;
+              case "DA":
+                resourceKey = "log_DA_" + row[errorCodeColumnName];
+                break;
+            }
+
+            targetRow["Error Code ID"] = resourceKey;
+            targetRow["List"] = type.toUpperCase();
+            errorCodeRow.push(targetRow);
+            lngsMap[lng][resourceKey] = { resource: targetRow[resourceColumnName] || "", type: type.toUpperCase(), errorCode: row[errorCodeColumnName] };
+          }
+
+          if (!isNullOrEmpty(row[resourceColumnName])) {
+            switch (type.toUpperCase()) {
+              case "BA-SCP":
+                resourceKey = "err_BASCP_" + row[errorCodeColumnName];
+                break;
+              case "DA":
+                resourceKey = "err_DA_" + row[errorCodeColumnName];
+                break;
+              case "DCC_BACKEND":
+                resourceKey = "err_BACKEND_" + row[errorCodeColumnName];
+                break;
+            }
+            targetRow["Error Code ID"] = resourceKey;
+            targetRow["List"] = type.toUpperCase();
+            errorCodeRow.push(targetRow);
+            lngsMap[lng][resourceKey] = { resource: targetRow[resourceColumnName] || "", type: type.toUpperCase(), errorCode: row[errorCodeColumnName] };
+          }
+        });
+
+        /*
       var productTypes = [];
       productTypes = getTargetTypes(row[productColumnName]);
       // 리소스 키 조합 및 세팅
@@ -103,7 +152,7 @@ async function fetchTranslationsFromSheetToJson(doc) {
 
         if (!isNullOrEmpty(row[resourceColumnName])) {
           switch (type.toUpperCase()) {
-            case "SCP":
+            case "BA-SCP":
               resourceKey = "log_BASCP_" + row[errorCodeColumnName];
               break;
             case "DA":
@@ -137,6 +186,8 @@ async function fetchTranslationsFromSheetToJson(doc) {
           lngsMap[lng][resourceKey] = { resource: targetRow[resourceColumnName] || "", type: type.toUpperCase(), errorCode: row[errorCodeColumnName] };
         }
       });
+      */
+      }
     }
   });
   if (!isNullOrEmpty(dccRows)) {
@@ -274,9 +325,10 @@ async function updateJsonFromSheet() {
     });
   } else {
     console.log("\n==아래 조건에 부합하는 다운로드 대상 Row가 없음==\n");
-    console.log("(1) Product List 컬럼에 'DCC' 문자열 포함");
-    console.log("(2) DCC_Status 컬럼 '확정'");
-    console.log("(3) Error Code 컬럼에 오류코드 존재");
+    // console.log("(1) Product List 컬럼에 'DCC' 문자열 포함");
+    // console.log("(2) DCC_Status 컬럼 '확정'");
+    console.log("(1) Error Code 컬럼에 BA-SCP/DA 오류코드 존재");
+    console.log("(2) 기존 리소스 파일에 없던 신규 오류 코드 존재");
   }
 }
 
