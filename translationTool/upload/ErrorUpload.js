@@ -8,6 +8,9 @@ const { loadSpreadsheet, localesPath, getPureKey, ns, creds, spreadsheetDocId, e
       (DCC Web Resource Management 시트)
       ../index.js 파일내의 DCC Web Resource Management 문서 관련> spreadsheetDocId, errorSheetId 참조
 
+    [실행 전]
+      DCC 버전이 업데이트 되었다면, .env 파일 내용을 갱신해야 함 (시트명으로 사용됨)
+
     [ 업로드 파일 실행 방법 ]
       package.json > script에 정의
           - 형태: "node {업로드파일 경로} {업로드 대상 언어} {대상 리소스 컬럼} {대상 Status 컬럼}"
@@ -20,8 +23,7 @@ const { loadSpreadsheet, localesPath, getPureKey, ns, creds, spreadsheetDocId, e
                 A. 시트 O, 소스코드 O
                     : pass
                 B. 시트 O, 소스 코드 X
-                    (1) status가 "삭제"이라면, 개발부에서 확인 후 제거한 리소스 이므로 시트에서도 제거
-                    (2) status가 "삭제"이 아니라면, pass 
+                    개발부에서 확인 후 제거한 리소스 이므로 시트에서도 제거
 
           2. [소스코드 기준] 소스코드에 있는 키 목록과 시트의 키 목록 비교
                 A. 소스코드 O, 시트 O 
@@ -32,16 +34,16 @@ const { loadSpreadsheet, localesPath, getPureKey, ns, creds, spreadsheetDocId, e
       [중복 키가 존재하는 경우, status별로 값을 비교하여 업로드 결정]
                 A. 시트-리소스간 값이 동일하지 않음 
                     1. status가 "신규": 리소스만 소스코드 기준으로 변경  
-                    2. status가 "확인(QI)": 리소스만 소스코드 기준으로 변경  
-                    3. status가 "확인(Dev)" : status "확인(QI)"로 변경 + 리소스는 소스코드 기준으로 변경 (= GL팀에서 확인요청 이후 개발팀에서 소스코드를 변경한 경우)
+                    2. status가 "확인(QI)/(GL)": 리소스만 소스코드 기준으로 변경  
+                    3. status가 "확인(Dev)" : status "확인(GL)"로 변경 + 리소스는 소스코드 기준으로 변경 (= GL팀에서 확인요청 이후 개발팀에서 소스코드를 변경한 경우)
                     4. status가 "확정": pass (= 개발부에서 확정 리소스를 소스코드에 다운로드(반영)하지 않은 상태인 것)
                     5. status가 "삭제": 리소스만 소스코드 기준으로 변경 (= 개발부에서 아직 키가 제거되지 않은 상태인 것)  
                     6. status가 "관리대상외": 리소스만 소스코드 기준으로 변경
-                    7. status가 "" (공백): status "확인(QI)"로 변경 + 리소스는 소스코드 기준으로 변경 (= 확정 리소스를 제품에 반영한 이후 다시 리소스가 변경된 경우) 
+                    7. status가 "" (공백): status "확인(GL)"로 변경 + 리소스는 소스코드 기준으로 변경 (= 확정 리소스를 제품에 반영한 이후 다시 리소스가 변경된 경우) 
 
                 B. 시트와 리소스 값이 동일함
                   : pass
-                      1. status가 "확인(QI)": pass (아직 GL팀 검토 이전인 경우) 
+                      1. status가 "확인(QI)/(GL)": pass (아직 GL팀 검토 이전인 경우) 
                       2. status가 "확인(Dev)" : pass (아직 개발팀에서 검토/수정이 이루어지지 않은 상태인 경우) 
                       3. status가 "확정": pass (검토 완료된 리소스가 소스코드에 반영된 상태)
                       4. status가 "삭제": pass (아직 개발팀에서 검토/제거가 이루어지지 않은 상태인 경우) 
@@ -50,13 +52,14 @@ const { loadSpreadsheet, localesPath, getPureKey, ns, creds, spreadsheetDocId, e
 
 
     * 확인(Dev), 삭제 status의 경우 수동 확인이 필요함
-        ㄴ확인(Dev)로 추가요청된 리소스의 경우, 개발부에서 검토 후 소스코드에 추가+status 변경(확인(QI)) 해두어야 함 => 수동
+        ㄴ확인(Dev)로 추가요청된 리소스의 경우, 개발부에서 검토 후 소스코드에 추가+status 변경(확인(GL)) 해두어야 함 => 수동
           ===> 이거까지 자동화 되려면 "추가요청"이라는 status가 따로 필요함
-    * 패키지 나갈때는 status에 "확정"/"관리대상외"만 남아있어야 함 ("삭제"는 남아있어도 상관은 없음 = 아직 삭제 검토가 좀 더 필요한 경우)
-    * 패키지 배포 후, "확정"인 status는 모두 공백으로 변경
+    * 패키지 나갈때는 status에 공백/"관리대상외"만 남아있어야 함 ("삭제"는 남아있어도 상관은 없음 = 아직 삭제 검토가 좀 더 필요한 경우)
+    * 패키지 배포 후, "확정"인 status는 모두 공백으로 변경 (LQA 시에는 제품 반영 확인 후 GL에서 공백으로 변경할 예정)
  */
 
 const { google } = require("googleapis");
+const { langs } = require("../asset/defaultInfo");
 let jwtClient = new google.auth.JWT(creds.client_email, null, creds.private_key, ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/calendar"]);
 
 //authenticate request
@@ -77,8 +80,7 @@ async function consistencyCheck(doc, keyMap) {
 		    A. 시트 O, 소스코드 O
 			    : pass
         B. 시트 O, 소스 코드 X
-		      (1) status가 "삭제"이라면, 개발부에서 확인 후 제거한 리소스 이므로 시트에서도 제거
-		      (2) status가 "삭제"이 아니라면, pass (일단 정합성이 안맞는 상태로 둠 => 추가 요청 리소스라면 차후에 개발부에서 확인 후 소스코드에 추가하면 "확인(QI)" 로 올라갈것임)  			
+		      : 개발부에서 확인 후 제거한 리소스 이므로 시트에서도 제거
 
    	  2. [소스코드 기준] 소스코드에 있는 키 목록과 시트의 키 목록 비교
         A. 소스코드 O, 시트 O 
@@ -106,15 +108,8 @@ async function consistencyCheck(doc, keyMap) {
 
     // B. 시트 O, 소스코드 X
     else {
-      /*
-        B-1. status가 "삭제"이라면, 개발부에서 확인 후 제거한 리소스 이므로 시트에서도 제거
-        B-2. status가 "삭제"이 아니라면, pass (일단 정합성이 안맞는 상태로 둠 => 추가 요청 리소스라면 차후에 개발부에서 확인 후 소스코드에 추가하면 "확인(QI)" 로 올라갈것임)
-      */
-      if (row[`KR_Status`] == "삭제") {
-        removeKeysIndex.push(i - 1);
-      } else {
-        // PASS
-      }
+      // 개발부에서 확인 후 제거한 리소스 이므로 시트에서도 제거
+      removeKeysIndex.push(i - 1);
     }
   });
 
@@ -158,10 +153,12 @@ async function consistencyCheck(doc, keyMap) {
           const header = columnKeyToHeader[lng];
           result[header] = translations[lng];
 
-          if (lng == "KO_KR") {
+          if (lng == langs.KO) {
             result[`KR_Status`] = "신규";
-          } else if (lng == "EN_US") {
+          } else if (lng == langs.EN) {
             result[`EN_Status`] = "신규";
+          } else if (lng == langs.JA) {
+            result[`JA_Status`] = "신규";
           } else {
             result[`KR_Status`] = "신규";
           }
@@ -181,7 +178,7 @@ async function consistencyCheck(doc, keyMap) {
 
 // [대상 시트가 없는 경우, 새로 생성]
 async function addNewSheet(doc, title, errorSheetId) {
-  const headerValues = ["Key", "KO_KR", "EN_US"];
+  const headerValues = ["Key", langs.KO, langs.EN, langs.JA, "KR_Status", "EN_Status", "JA_Status"];
   const sheet = await doc.addSheet({
     errorSheetId,
     title,
@@ -239,10 +236,12 @@ async function updateTranslationsFromKeyMapToSheet(doc, keyMap) {
             const header = columnKeyToHeader[lng];
             result[header] = translations[lng];
 
-            if (lng == "KO_KR") {
+            if (lng == langs.KO) {
               result[`KR_Status`] = "신규";
-            } else if (lng == "EN_US") {
+            } else if (lng == langs.EN) {
               result[`EN_Status`] = "신규";
+            } else if (lng == langs.JA) {
+              result[`JA_Status`] = "신규";
             } else {
               result[`KR_Status`] = "신규";
             }
@@ -257,12 +256,12 @@ async function updateTranslationsFromKeyMapToSheet(doc, keyMap) {
           [중복 키가 존재하는 경우, STATUS별로 값을 비교하여 업로드 결정]
             A. 시트-리소스간 값이 동일하지 않음
                1. status가 "신규": 값만 소스코드 기준으로 변경  
-          		 2. status가 "확인(QI)": 값만 소스코드 기준으로 변경  
-               3. status가 "확인(Dev)" : status "확인(QI)"로 변경 + 값은 소스코드 기준으로 변경 (= GL팀에서 확인요청 이후 개발팀에서 소스코드를 변경한 경우)
+          		 2. status가 "확인(QI)/(GL)": 값만 소스코드 기준으로 변경  
+               3. status가 "확인(Dev)" : status "확인(GL)"로 변경 + 값은 소스코드 기준으로 변경 (= GL팀에서 확인요청 이후 개발팀에서 소스코드를 변경한 경우)
                4. status가 "확정": pass (= 개발부에서 최신 리소스를 소스코드에 다운로드(반영)하지 않은 상태인 것)
             	 5. status가 "삭제": 값만 소스코드 기준으로 변경 (= 개발부에서 아직 키가 제거되지 않은 상태인 것)  
 		           6. status가 "관리대상외": 값만 소스코드 기준으로 변경
- 		           7. status가 "" (공백): status "확인(QI)"로 변경 + 값은 소스코드 기준으로 변경 (= 제품에 반영한 이후 다시 리소스가 변경된 경우) 
+ 		           7. status가 "" (공백): status "확인(GL)"로 변경 + 값은 소스코드 기준으로 변경 (= 제품에 반영한 이후 다시 리소스가 변경된 경우) 
 
             B. 시트와 리소스 값이 동일함
               : PASS
@@ -272,10 +271,12 @@ async function updateTranslationsFromKeyMapToSheet(doc, keyMap) {
           var targetRow = existRows.filter((row) => row.Key == key)[0]; // 시트 데이터
           var lngType = element[0];
           var targetStatus = "";
-          if (lngType == "KO_KR") {
+          if (lngType == langs.KO) {
             targetStatus = targetRow.KR_Status;
-          } else if (lngType == "EN_US") {
+          } else if (lngType == langs.EN) {
             targetStatus = targetRow.EN_Status;
+          } else if (lngType == langs.JA) {
+            targetStatus = targetRow.JA_Status;
           } else {
             targetStatus = targetRow.KR_Status;
           }
@@ -285,10 +286,10 @@ async function updateTranslationsFromKeyMapToSheet(doc, keyMap) {
           if (!isSame) {
             switch (targetStatus) {
               case "": // 빈값이면 "" 에 해당하는지부터 체크
-                await changeRow(lngType, keyMap, key, "확인(QI)", true); // status 비어있으면 채워주기 => 패키지에 반영된 이후 다시 리소스가 변경된 경우
+                await changeRow(lngType, keyMap, key, "신규", true); //"확인(GL)", true); // status 비어있으면 채워주기 => 패키지에 반영된 이후 다시 리소스가 변경된 경우
                 break;
               case undefined:
-                await changeRow(lngType, keyMap, key, "확인(QI)", true); // status 비어있으면 채워주기 => 패키지에 반영된 이후 다시 리소스가 변경된 경우
+                await changeRow(lngType, keyMap, key, "신규", true); //"확인(GL)", true); // status 비어있으면 채워주기 => 패키지에 반영된 이후 다시 리소스가 변경된 경우
                 break;
               case "신규":
                 await changeRow(lngType, keyMap, key, "", true);
@@ -296,8 +297,11 @@ async function updateTranslationsFromKeyMapToSheet(doc, keyMap) {
               case "확인(QI)":
                 await changeRow(lngType, keyMap, key, "", true);
                 break;
+              case "확인(GL)":
+                await changeRow(lngType, keyMap, key, "", true);
+                break;
               case "확인(Dev)":
-                await changeRow(lngType, keyMap, key, "확인(QI)", true);
+                await changeRow(lngType, keyMap, key, "확인(GL)", true);
                 break;
               case "확정":
                 // PASS
@@ -341,8 +345,26 @@ async function rowBatchUpdate() {
   var index = 2;
 
   changedRows.forEach((element) => {
-    const resourceColumnName = lngs[0] == "KO_KR" ? "KO_KR" : "EN_US";
-    const statusColumnName = lngs[0] == "KO_KR" ? "KR_Status" : "EN_Status";
+    let resourceColumnName = lngs[0]; // "KO_KR"/"EN_US"/"JA_JP";
+    let statusColumnName = "";
+    switch (lngs[0]) {
+      case langs.KO: {
+        statusColumnName = "KR_Status";
+        break;
+      }
+      case langs.EN: {
+        statusColumnName = "EN_Status";
+        break;
+      }
+      case langs.JA: {
+        statusColumnName = "JA_Status";
+        break;
+      }
+      default: {
+        statusColumnName = "KR_Status";
+        break;
+      }
+    }
 
     var resourceObj = { range: sheetName + "!" + resource_Column_Num + index, values: [[element[resourceColumnName]]] }; // REOSURCE
     var statusObj = { range: sheetName + "!" + status_Column_Num + index, values: [[element[statusColumnName]]] }; // STATUS
@@ -399,7 +421,7 @@ async function rowBatchDelete(targetIndexs) {
 }
 
 // [특정 Row의 resource 및 status를 변경하여 일괄 업로드 대상 전역변수 갱신]
-async function changeRow(lng = "KO_KR", keyMap, targetKey, status = "", isChangeValue = false) {
+async function changeRow(lng = langs.KO, keyMap, targetKey, status = "", isChangeValue = false) {
   // 각 Row별로 업데이트 하려고 했는데, 시트가 업데이트 되기 전에 다음 업로드를 시행해버려서 결국 한가지 언어만 변경되는 문제 있음
   // => 시트에 변경 대상 리소스를 일괄 업데이트하도록 방안 조정 (전역변수 사용)
 
@@ -409,10 +431,12 @@ async function changeRow(lng = "KO_KR", keyMap, targetKey, status = "", isChange
     const key = row[columnKeyToHeader.key];
     if (key == targetKey) {
       if (status != "") {
-        if (lng == "KO_KR") {
+        if (lng == langs.KO) {
           changedRows[i][`KR_Status`] = status;
-        } else if (lng == "EN_US") {
+        } else if (lng == langs.EN) {
           changedRows[i][`EN_Status`] = status;
+        } else if (lng == langs.JA) {
+          changedRows[i][`JA_Status`] = status;
         } else {
           changedRows[i][`KR_Status`] = status;
         }
@@ -420,10 +444,12 @@ async function changeRow(lng = "KO_KR", keyMap, targetKey, status = "", isChange
 
       if (isChangeValue) {
         var resource = keyMapArr.filter((x) => x[0] == key)[0][1];
-        if (lng == "KO_KR") {
+        if (lng == langs.KO) {
           changedRows[i][`KO_KR`] = resource[`KO_KR`];
-        } else if ("EN_US") {
+        } else if (langs.EN) {
           changedRows[i][`EN_US`] = resource[`EN_US`];
+        } else if (langs.JA) {
+          changedRows[i][`JA_JP`] = resource[`JA_JP`];
         }
       }
     }
@@ -458,10 +484,12 @@ function gatherKeyMap(keyMap, lng, json) {
   var targetData = { ...json };
 
   // 2번째 depth 키를 사용
-  if (lng == "KO_KR") {
+  if (lng == langs.KO) {
     targetData = { ...json.ko };
-  } else if (lng == "EN_US") {
+  } else if (lng == langs.EN) {
     targetData = { ...json.en };
+  } else if (lng == langs.JA) {
+    targetData = { ...json.ja };
   }
 
   for (const [keyWithPostfix, translated] of Object.entries(targetData)) {
@@ -499,10 +527,12 @@ async function updateSheetFromJson(lngs) {
     lngs.forEach((lng) => {
       //   const localeJsonFilePath = `${localesPath}/${lng}/${ns}.json`; **
       var localeJsonFilePath = "";
-      if (lng == "KO_KR") {
+      if (lng == langs.KO) {
         localeJsonFilePath = "lang/lang.ko.json";
-      } else if (lng == "EN_US") {
+      } else if (lng == langs.EN) {
         localeJsonFilePath = "lang/lang.en.json";
+      } else if (lng == langs.JA) {
+        localeJsonFilePath = "lang/lang.ja.json";
       }
 
       //.json file read
@@ -526,13 +556,14 @@ async function changeResource(sheet, lng, targetKey, value) {
     const row = rows[i];
     const key = row[columnKeyToHeader.key];
     if (key == targetKey) {
-      if (lng == "KO_KR") {
+      if (lng == langs.KO) {
         rows[i][`KO_KR`] = value;
-        await rows[i].save();
-      } else if (lng == "EN_US") {
+      } else if (lng == langs.EN) {
         rows[i][`EN_US`] = value;
-        await rows[i].save();
+      } else if (lng == langs.JA) {
+        rows[i][`JA_JP`] = value;
       }
+      await rows[i].save();
     }
   }
 }
@@ -556,11 +587,14 @@ const lngs = [params[0]];
 const resource_Column_Num = params[1];
 const status_Column_Num = params[2];
 const columnKeyToHeader = { key: "Key" };
-if (lngs.includes("KO_KR")) {
-  columnKeyToHeader.KO_KR = "KO_KR";
+if (lngs.includes(langs.KO)) {
+  columnKeyToHeader.KO_KR = langs.KO;
 }
-if (lngs.includes("EN_US")) {
-  columnKeyToHeader.EN_US = "EN_US";
+if (lngs.includes(langs.EN)) {
+  columnKeyToHeader.EN_US = langs.EN;
+}
+if (lngs.includes(langs.JA)) {
+  columnKeyToHeader.JA_JP = langs.JA;
 }
 
 updateSheetFromJson(lngs);

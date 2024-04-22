@@ -1,5 +1,7 @@
 const fs = require("fs");
-const { loadSpreadsheet, getPureKey, localesPath, ns, logSheetId, NOT_AVAILABLE_CELL } = require("../index");
+const utilFunc = require("../asset/utilFunc");
+const { loadSpreadsheet, getPureKey, localesPath, ns, logSheetId, NOT_AVAILABLE_CELL, isNullOrEmpty } = require("../index");
+const { langs } = require("../asset/defaultInfo");
 
 /*  ==== READ ME ====
     [ DCC Web Resource Management 시트 다운로드 파일 실행 방법 ]
@@ -10,12 +12,12 @@ const { loadSpreadsheet, getPureKey, localesPath, ns, logSheetId, NOT_AVAILABLE_
 
     [다운로드 전체 로직]
       A. 소스코드/시트 간 키 정합성 체크: 
-        1. [시트 기준] 시트에 있는 키인데, 소스코드에 없다면 다운로드 대상 아님  
+        1. [시트 기준] 시트에 있는 키인데, 소스코드에 없는 경우 PASS
         2. [소스코드 기준] 소스코드에 있는 키인데, 시트에 없다면 소스코드 리소스 유지(개발팀에서 리소스 추가 후, 시트에 업로드하지 않은 상태인 것)
 
       B. 시트의 Status를 체크하여 다운로드 여부 판단
-        1. 삭제/확인(Dev)/관리대상외  인 경우, 시트의 리소스를 다운로드하지 않고 유지함  
-        2. 위 3개 status가 아닌 경우, 다운로드 하여 시트와 동기화
+        1. ‘확정’인 경우만 시트 리소스 다운로드
+        2. 그 외의 경우 기존 소스코드 리소스로 유지
  */
 
 // [스프레드 시트 -> json]
@@ -32,10 +34,12 @@ async function fetchTranslationsFromSheetToJson(doc) {
     lngs.forEach((lng) => {
       const translation = row[lng];
       var status = "";
-      if (lng == "KO_KR") {
+      if (lng == langs.KO) {
         status = row.KR_Status;
-      } else if (lng == "EN_US") {
+      } else if (lng == langs.EN) {
         status = row.EN_Status;
+      } else if (lng == langs.JA) {
+        status = row.JA_Status;
       } else {
         status = row.KR_Status;
       }
@@ -59,10 +63,12 @@ async function fetchTranslationsFromSheetToJson(doc) {
 // [keyMap이라는 변수에 리소스 파일내 json 데이터를 Object 타입으로 변환하여 세팅 (형태: [{key:value},...])]
 function gatherKeyMap(keyMap, lng, json) {
   var targetData = { ...json };
-  if (lng == "KO_KR") {
+  if (lng == langs.KO) {
     targetData = { ...json.ko };
-  } else if (lng == "EN_US") {
+  } else if (lng == langs.EN) {
     targetData = { ...json.en };
+  } else if (lng == langs.JA) {
+    targetData = { ...json.ja };
   }
 
   for (const [keyWithPostfix, translated] of Object.entries(targetData)) {
@@ -104,6 +110,8 @@ function statusCheck(lngsMap, localeJsonFilePath, lng) {
 
   sourceResourceArr.forEach((element) => {
     const targetObj = lngArr.filter((x) => x[0] == sourceKey);
+    // [A. 소스코드 기준 키 정합성 체크]
+
     if (targetObj.length == 0) {
       // 소스코드에는 있고, 시트에는 없는 키는 소스코드 그대로 유지
       var sourceKey = element[0];
@@ -117,44 +125,61 @@ function statusCheck(lngsMap, localeJsonFilePath, lng) {
     const sheetResource = sheetElement[1].resource;
     const status = sheetElement[1].status;
 
-    // A. 시트기준 키 정합성 체크
-    const targetObj = sourceResourceArr.filter((x) => x[0] == key);
+    // [B. 시트기준 키 정합성 체크]
+    const targetObj = sourceResourceArr?.filter((x) => x[0] == key);
     if (targetObj.length == 0) {
-      // 시트에 있는 키인데, 소스코드에 없다면 다운로드 대상 아님
-      return false;
+      // 시트에 있는 키인데, 소스코드에 없다면
+      if (sourceResourceArr.length == 0) {
+        // 소스코드에 해당 언어 리소스가 0개라면, 시트의 리소스를 소스코드로 모두 다운로드 (언어 첫 지원 시)
+        resultArr[key] = sheetResource;
+      } else {
+        // 다운로드 대상 아님
+        return false;
+      }
     }
-    // B. 시트의 Status를 체크하여 다운로드 여부 판단 후, lngsMap 재구성
-    const sourceResource = sourceResourceArr.filter((x) => x[0] == key)[0][1]; // 소스코드에 있는 리소스의 해당 키 값
 
-    switch (status) {
-      case "신규":
-        // 시트 리소스를 그대로 소스코드에 다운로드 (=pass)
-        resultArr[key] = sheetResource;
-        break;
-      case "확인(QI)":
-        // 시트 리소스를 그대로 소스코드에 다운로드 (=pass)
-        resultArr[key] = sheetResource;
-        break;
-      case "확정":
-        // 시트 리소스를 그대로 소스코드에 다운로드 (=pass)
-        resultArr[key] = sheetResource;
-        break;
-      case "삭제":
-        // 소스코드의 기존 리소스로 유지
-        resultArr[key] = sourceResource[key][lng];
-        break;
-      case "확인(Dev)":
-        // 소스코드 기존 리소스로 유지
-        resultArr[key] = sourceResource[key][lng];
-        break;
-      case "관리대상외":
-        // 소스코드 기존 리소스로 유지
-        resultArr[key] = sourceResource[key][lng];
-        break;
-    }
+    // [C. 시트의 Status를 체크하여 다운로드 여부 판단 후, lngsMap 재구성]
+    const sourceResource = sourceResourceArr?.filter((x) => x[0] == key)?.[0]?.[1]; // 소스코드에 있는 리소스의 해당 키 값
+
+    // if (!isNullOrEmpty(sourceResource)) {
+    // } // ==> 이거 안들어가도될지 확인 필요 ***
+    if (!utilFunc.isNullOrEmpty(sourceResource))
+      switch (status) {
+        case "신규":
+          // 소스코드 기존 리소스로 유지 (pass) => 소스코드에서 올린 후 검수되지 않은 리소스이므로 가져오지 않음
+          resultArr[key] = sourceResource[key][lng];
+          break;
+        case "확인(QI)":
+          // 소스코드 기존 리소스로 유지 (pass) => 소스코드에서 올린 후 검수되지 않은 리소스이므로 가져오지 않음
+          resultArr[key] = sourceResource[key][lng];
+          break;
+        case "확인(GL)":
+          // 소스코드 기존 리소스로 유지 (pass) => 소스코드에서 올린 후 검수되지 않은 리소스이므로 가져오지 않음
+          resultArr[key] = sourceResource[key][lng];
+          break;
+        case "확정":
+          // 시트 리소스를 그대로 소스코드에 다운로드
+          resultArr[key] = sheetResource;
+          break;
+        case "삭제":
+          // 소스코드의 기존 리소스로 유지 (pass)
+          resultArr[key] = sourceResource[key][lng];
+          break;
+        case "확인(Dev)":
+          // 소스코드 기존 리소스로 유지 (pass)
+          resultArr[key] = sourceResource[key][lng];
+          break;
+        case "관리대상외":
+          // 소스코드 기존 리소스로 유지 (pass)
+          resultArr[key] = sourceResource[key][lng];
+          break;
+        default: // 소스코드 기존 리소스로 유지
+          resultArr[key] = sourceResource[key][lng];
+          break;
+      }
   });
   lngsMap[lng] = resultArr;
-  console.log("status별 다운로드 여부 체크 완료");
+  console.log("키 정합성 체크 및 status별 다운로드 여부 체크 완료");
 }
 
 // [초기 실행 함수 => 리소스 파일에 최종 리소스 덮어쓰기 실행]
@@ -168,20 +193,27 @@ async function updateJsonFromSheet() {
     lngs.forEach((lng) => {
       // const localeJsonFilePath = `${localesPath}/${lng}/${ns}.json`; **
       var localeJsonFilePath = "";
-      if (lng == "KO_KR") localeJsonFilePath = "lang/lang.ko.json";
-      else if (lng == "EN_US") localeJsonFilePath = "lang/lang.en.json";
+      if (lng == langs.KO) localeJsonFilePath = "lang/lang.ko.json";
+      else if (lng == langs.EN) localeJsonFilePath = "lang/lang.en.json";
+      else if (lng == langs.JA) localeJsonFilePath = "lang/lang.ja.json";
 
       statusCheck(lngsMap, localeJsonFilePath, lng);
       var temp = {};
-      if (lng == "KO_KR") {
+      if (lng == langs.KO) {
         if (!Object.keys(lngsMap[lng]).includes("ko")) {
           temp = { ko: { ...lngsMap[lng] } };
         } else {
           temp = { ...lngsMap[lng] };
         }
-      } else if (lng == "EN_US") {
+      } else if (lng == langs.EN) {
         if (!Object.keys(lngsMap[lng]).includes("en")) {
           temp = { en: { ...lngsMap[lng] } };
+        } else {
+          temp = { ...lngsMap[lng] };
+        }
+      } else if (lng == langs.JA) {
+        if (!Object.keys(lngsMap[lng]).includes("ja")) {
+          temp = { ja: { ...lngsMap[lng] } };
         } else {
           temp = { ...lngsMap[lng] };
         }
@@ -204,10 +236,13 @@ async function updateJsonFromSheet() {
 const params = process.argv.slice(2);
 const lngs = [params[0]];
 const columnKeyToHeader = { key: "Key" };
-if (lngs.includes("KO_KR")) {
-  columnKeyToHeader.KO_KR = "KO_KR";
+if (lngs.includes(langs.KO)) {
+  columnKeyToHeader.KO_KR = langs.KO;
 }
-if (lngs.includes("EN_US")) {
-  columnKeyToHeader.EN_US = "EN_US";
+if (lngs.includes(langs.EN)) {
+  columnKeyToHeader.EN_US = langs.EN;
+}
+if (lngs.includes(langs.JA)) {
+  columnKeyToHeader.JA_JP = langs.JA;
 }
 updateJsonFromSheet();

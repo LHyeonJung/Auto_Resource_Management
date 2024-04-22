@@ -1,5 +1,6 @@
 const fs = require("fs");
 const { loadIntegratedErrorCodeSpreadsheet, getPureKey, localesPath, ns, intergratedSheetId, NOT_AVAILABLE_CELL } = require("../index");
+const { langs } = require("../asset/defaultInfo");
 
 /* ==== READ ME ====
     [ 통합 오류코드 시트 다운로드 파일 실행 방법 ]
@@ -199,10 +200,12 @@ async function fetchTranslationsFromSheetToJson(doc) {
 // [keyMap이라는 변수에 리소스 파일내 json 데이터를 Object 타입으로 변환하여 세팅 (형태: [{key:value},...])]
 function gatherKeyMap(keyMap, lng, json) {
   var targetData = { ...json };
-  if (lng == "KO_KR") {
+  if (lng == langs.KO) {
     targetData = { ...json.ko };
-  } else if (lng == "EN_US") {
+  } else if (lng == langs.EN) {
     targetData = { ...json.en };
+  } else if (lng == langs.JA) {
+    targetData = { ...json.ja };
   }
 
   for (const [keyWithPostfix, translated] of Object.entries(targetData)) {
@@ -292,21 +295,28 @@ async function updateJsonFromSheet() {
       }
       lngs.forEach((lng) => {
         var localeJsonFilePath = "";
-        if (lng == "KO_KR") localeJsonFilePath = "lang/lang.ko.json";
-        else if (lng == "EN_US") localeJsonFilePath = "lang/lang.en.json";
+        if (lng == langs.KO) localeJsonFilePath = "lang/lang.ko.json";
+        else if (lng == langs.EN) localeJsonFilePath = "lang/lang.en.json";
+        else if (lng == langs.JA) localeJsonFilePath = "lang/lang.ja.json";
 
         statusCheck(SheetResourceMap, localeJsonFilePath, lng);
 
         var temp = {};
-        if (lng == "KO_KR") {
+        if (lng == langs.KO) {
           if (!Object.keys(SheetResourceMap[lng]).includes("ko")) {
             temp = { ko: { ...SheetResourceMap[lng] } };
           } else {
             temp = { ...SheetResourceMap[lng] };
           }
-        } else if (lng == "EN_US") {
+        } else if (lng == langs.EN) {
           if (!Object.keys(SheetResourceMap[lng]).includes("en")) {
             temp = { en: { ...SheetResourceMap[lng] } };
+          } else {
+            temp = { ...SheetResourceMap[lng] };
+          }
+        } else if (lng == langs.JA) {
+          if (!Object.keys(SheetResourceMap[lng]).includes("ja")) {
+            temp = { ja: { ...SheetResourceMap[lng] } };
           } else {
             temp = { ...SheetResourceMap[lng] };
           }
@@ -336,11 +346,14 @@ async function updateJsonFromSheet() {
 const params = process.argv.slice(2);
 const lngs = [params[0]];
 const columnKeyToHeader = { key: "Key" };
-if (lngs.includes("KO_KR")) {
-  columnKeyToHeader.KO_KR = "KO_KR";
+if (lngs.includes(langs.KO)) {
+  columnKeyToHeader.KO_KR = langs.KO;
 }
-if (lngs.includes("EN_US")) {
-  columnKeyToHeader.EN_US = "EN_US";
+if (lngs.includes(langs.EN)) {
+  columnKeyToHeader.EN_US = langs.EN;
+}
+if (lngs.includes(langs.JA)) {
+  columnKeyToHeader.JA_JP = langs.JA;
 }
 
 updateJsonFromSheet();

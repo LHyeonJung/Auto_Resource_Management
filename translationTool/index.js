@@ -1,3 +1,6 @@
+// import { dccResourceSheetId, docId, intergraionResourceSheetId, langs } from "./asset/defaultInfo";
+const asset = require("./asset/defaultInfo");
+
 /*
   - 업로드 시, 이전 업로드와 간격은 1분이상 두고 실행시켜야 함
   - 다운로드 시, 컬럼별 필터링에 의해 일부 row가 숨겨져 있어도 모두 다운로드 됨 확인
@@ -16,23 +19,23 @@ const ns = "translation";
 const columnKeyToHeader = {
   //스프레드시트에 들어갈 header 설정
   key: "Key",
-  KO_KR: "KO_KR",
-  EN_US: "EN_US",
+  KO_KR: asset.langs.KO,
+  EN_US: asset.langs.EN,
+  JA_JP: asset.langs.JA,
 };
 
 //#region [DCC Web Resource Management 문서 관련]
-
 // 해당 스프레드 시트: https://docs.google.com/spreadsheets/d/1LHnZQLypttFSXKsmgXxFKFnYJXLcmK8qPTtK_dfjzA4/edit#gid=0
-const spreadsheetDocId = "1LHnZQLypttFSXKsmgXxFKFnYJXLcmK8qPTtK_dfjzA4"; // 스프레드 시트의 Doc ID
-const publicSheetId = 0; //구글 스프레드시트의 gid
-const logSheetId = 1951955029; //구글 스프레드시트의 gid
-const errorSheetId = 1065051052; //구글 스프레드시트의 gid
+const spreadsheetDocId = asset.docId.dccResource; // 스프레드 시트의 Doc ID
+const publicSheetId = asset.dccResourceSheetId.public; //구글 스프레드시트의 gid
+const logSheetId = asset.dccResourceSheetId.log; //구글 스프레드시트의 gid
+const errorSheetId = asset.dccResourceSheetId.error; //구글 스프레드시트의 gid
 //#endregion
 
 //#region [D'Amo 통합 오류코드 문서 관련]
 // 해당 스프레드 시트: https://docs.google.com/spreadsheets/d/1LHnZQLypttFSXKsmgXxFKFnYJXLcmK8qPTtK_dfjzA4/edit#gid=1591246254
-const integratedErrorCodeSpreadsheetDocId = "1LHnZQLypttFSXKsmgXxFKFnYJXLcmK8qPTtK_dfjzA4"; // 스프레드 시트의 Doc ID
-const intergratedSheetId = 1591246254; //구글 스프레드시트의 gid
+const integratedErrorCodeSpreadsheetDocId = asset.docId.dccResource; // 스프레드 시트의 Doc ID
+const intergratedSheetId = asset.intergraionResourceSheetId.all; //구글 스프레드시트의 gid
 //#endregion
 
 /* [스프레드 시트 로드] */
